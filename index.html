@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Habit & Workout Tracker</title>
+  <!-- PWA: theme + placeholders (manifest will be injected dynamically) -->
+  <meta name="theme-color" content="#0f1222">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link id="app-manifest" rel="manifest" href="manifest.webmanifest">
+  <style>
+    :root {
+      --bg: #0f1222;
+      --panel: #161a2f;
+      --panel-2: #1c2140;
+      --text: #eef2ff;
+      --muted: #aab2d5;
+      --accent: #6ae3ff;
+      --good: #45d483;
+      --warn: #ffc857;
+      --bad: #ff6b6b;
+      --card-radius: 16px;
+      --shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 700px at 20% -10%, #1b1f3e 0%, var(--bg) 60%), var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 18px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      position: sticky; top: 0; background: linear-gradient(#0f1222cc, #0f1222cc);
+      backdrop-filter: blur(6px); z-index: 10; border-bottom: 1px solid #22284d;
+    }
+    header h1 { font-size: 20px; margin: 0; letter-spacing: .4px; }
+    .spacer { flex: 1; }
+    .btn {
+      background: var(--panel-2); border: 1px solid #2a3163; color: var(--text);
+      padding: 8px 12px; border-radius: 10px; cursor: pointer; box-shadow: var(--shadow);
+    }
+    .btn:hover { filter: brightness(1.05); }
+    .btn.ghost { background: transparent; border-color: #2a3163; }
+    .btn.small { padding: 6px 10px; font-size: 13px; }
+    .chip { padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #2a3163; background: var(--panel-2); color: var(--muted); }
+
+    main { padding: 18px; max-width: 1100px; margin: 0 auto; }
+
+    .row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; align-items: start; }
+
+    .card { background: linear-gradient(180deg, var(--panel), #141836); border: 1px solid #22284d; border-radius: var(--card-radius); box-shadow: var(--shadow); padding: 16px; }
+    .card h3 { margin: 0 0 8px; font-size: 16px; letter-spacing: .3px; }
+    .muted { color: var(--muted); font-size: 13px; }
+
+    .controls { grid-column: span 12; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .controls .date-wrap { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #2a3163; border-radius: 12px; background: var(--panel); }
+    input[type="date"] { background: transparent; border: none; color: var(--text); font-size: 14px; outline: none; }
+
+    .inputs { grid-column: span 12; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .inputs .card { grid-column: span 12; }
+    @media (min-width: 640px) { .inputs .card { grid-column: span 4; } }
+
+    .field { display: grid; gap: 8px; }
+    .field label { font-size: 14px; color: var(--muted); }
+
+    .status { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; }
+    .dot.good { background: var(--good); }
+    .dot.bad { background: var(--bad); }
+    .dot.warn { background: var(--warn); }
+
+    .streaks { grid-column: span 12; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .streak-card { grid-column: span 12; }
+    @media (min-width: 640px) { .streak-card { grid-column: span 12; } }
+
+    .streak-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .streak-item { background: #0f1330; border: 1px solid #252c5a; border-radius: 12px; padding: 12px; }
+    .streak-item h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+    .streak-item .big { font-size: 24px; font-weight: 700; }
+
+    .charts { grid-column: span 12; display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .chart-card { grid-column: span 12; }
+    @media (min-width: 850px) { .chart-card { grid-column: span 4; } }
+    canvas { width: 100%; height: 240px; display: block; }
+
+    .export { grid-column: span 12; display: grid; grid-template-columns: 1fr; gap: 12px; }
+    textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 12px; background: #0f1330; color: var(--text); border: 1px solid #2a3163; }
+
+    dialog { border: 1px solid #2a3163; border-radius: 16px; padding: 0; color: var(--text); background: linear-gradient(180deg, var(--panel), #141836); }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #22284d; }
+    .modal-body { padding: 16px; display: grid; gap: 12px; }
+    .grid-2 { display: grid; gap: 12px; grid-template-columns: repeat(1, 1fr); }
+    @media (min-width: 640px) { .grid-2 { grid-template-columns: repeat(2, 1fr); } }
+
+    /* Segmented controls */
+    .seg { display:flex; gap: 8px; flex-wrap: wrap; }
+    .seg button { background: var(--panel-2); border: 1px solid #2a3163; color: var(--text); padding: 8px 12px; border-radius: 999px; cursor: pointer; }
+    .seg button.active { background: #1f2754; border-color: var(--accent); box-shadow: var(--shadow); }
+
+    .summary { display:flex; align-items:center; gap:10px; }
+    .summary .txt { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏋️‍♂️ Habit & Workout Tracker</h1>
+    <span class="chip">v1 • localStorage only</span>
+    <span id="testBadge" class="chip" style="display:none;">tests: ok</span>
+
+    <!-- Mode selector -->
+    <div class="seg" id="modeSeg" title="Overall mode">
+      <button id="modeCutting" data-mode="cutting">Cutting</button>
+      <button id="modeGaintaining" data-mode="gaintaining">Gaintaining</button>
+      <button id="modeBulking" data-mode="bulking">Bulking</button>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="btn small" id="btnSettings">Settings</button>
+    <button class="btn small ghost" id="btnReset">Reset Data</button>
+  </header>
+
+  <main>
+    <div class="row controls">
+      <div class="date-wrap">
+        <button class="btn small" id="prevDay" title="Previous day">◀</button>
+        <input type="date" id="datePick" />
+        <button class="btn small" id="nextDay" title="Next day">▶</button>
+      </div>
+      <button class="btn small ghost" id="btnToday">Today</button>
+      <span class="muted">Tip: values save instantly. Week view updates off the selected date.</span>
+    </div>
+
+    <div class="inputs">
+      <div class="card">
+        <h3>🏋️ Workout Session</h3>
+        <div class="field">
+          <label>Choose today's session type</label>
+          <div class="seg" id="workoutSeg">
+            <button id="wNone" data-type="none">None</button>
+            <button id="wPush" data-type="push">Push</button>
+            <button id="wPull" data-type="pull">Pull</button>
+            <button id="wFull" data-type="full">Full body</button>
+          </div>
+        </div>
+        <div class="status" id="statusWorkout"></div>
+      </div>
+
+      <div class="card">
+        <h3>🚶 Walk / Cardio</h3>
+        <div class="field">
+          <label>Select today's walking</label>
+          <div class="seg" id="walkSeg">
+            <button id="walkNone" data-type="none">None</button>
+            <button id="walkLt30" data-type="lt30">&lt; 30 min</button>
+            <button id="walkGte30" data-type="gte30">≥ 30 min</button>
+          </div>
+        </div>
+        <div class="status" id="statusWalk"></div>
+      </div>
+
+      <div class="card">
+        <h3>🍽️ Calories</h3>
+        <div class="field">
+          <label>Log today's calories</label>
+          <div class="seg" id="calSeg">
+            <button id="calUntracked" data-cal="untracked">Untracked</button>
+            <button id="calUnder" data-cal="under">Under or equal</button>
+            <button id="calOver" data-cal="over">Over or equal</button>
+          </div>
+        </div>
+        <div class="status" id="statusCal"></div>
+      </div>
+    </div>
+
+    <div class="streaks">
+      <div class="card streak-card">
+        <h3>🔥 Streaks (based on thresholds)</h3>
+        <div class="streak-grid">
+          <div class="streak-item">
+            <h4>🏋️ Workouts</h4>
+            <div class="big" id="streakWorkouts">0</div>
+            <div class="muted" id="streakWorkoutsHint"></div>
+          </div>
+          <div class="streak-item">
+            <h4>🚶 Walks</h4>
+            <div class="big" id="streakWalks">0</div>
+            <div class="muted" id="streakWalksHint"></div>
+          </div>
+          <div class="streak-item">
+            <h4>🍽️ Calories within limit</h4>
+            <div class="big" id="streakCalories">0</div>
+            <div class="muted" id="streakCaloriesHint"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="card chart-card">
+        <h3>🍽️ Calories vs Mode Limit — This Week</h3>
+        <canvas id="chartCalories" width="600" height="280"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>🏋️ Workouts — This Week</h3>
+        <div id="summaryWorkouts" class="summary"><span class="dot warn"></span><span class="txt">No data yet.</span></div>
+      </div>
+      <div class="card chart-card">
+        <h3>🚶 Walk — This Week</h3>
+        <div id="summaryWalks" class="summary"><span class="dot warn"></span><span class="txt">No data yet.</span></div>
+      </div>
+    </div>
+
+    <div class="export card" style="margin-top:16px;">
+      <h3>📤 Export / 📥 Import</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn small" id="btnExport">Export JSON</button>
+        <button class="btn small" id="btnCopy">Copy</button>
+        <label class="btn small ghost" for="fileImport">Import JSON</label>
+        <input id="fileImport" type="file" accept="application/json" style="display:none;" />
+      </div>
+      <textarea id="ioBox" placeholder="Export shows here. You can paste JSON and click Import to load."></textarea>
+      <div class="muted">Note: Import merges by date and overwrites existing entries for matching dates. Settings are imported if provided.</div>
+    </div>
+  </main>
+
+  <dialog id="settingsModal">
+    <div class="modal-head">
+      <strong>⚙️ Settings</strong>
+      <button class="btn small ghost" id="closeSettings">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2">
+        <div class="field">
+          <label>Calorie target — Cutting</label>
+          <input id="setCalCut" type="number" min="800" step="50" />
+        </div>
+        <div class="field">
+          <label>Calorie target — Gaintaining</label>
+          <input id="setCalGain" type="number" min="800" step="50" />
+        </div>
+        <div class="field">
+          <label>Calorie target — Bulking</label>
+          <input id="setCalBulk" type="number" min="800" step="50" />
+        </div>
+        <div class="field">
+          <label>Daily walk target (minutes)</label>
+          <input id="setWalkTarget" type="number" min="0" step="5" />
+        </div>
+        <div class="field">
+          <label>Walk: day "done" at ≥ (minutes)</label>
+          <input id="setWalkThresh" type="number" min="0" step="5" />
+        </div>
+        <div class="field">
+          <label>Start of week</label>
+          <select id="setWeekStart" style="width:100%; padding:10px 12px; border-radius:12px; background:#0f1330; color:var(--text); border:1px solid #2a3163;">
+            <option value="Mon">Monday</option>
+            <option value="Sun">Sunday</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Workout weekly target (sessions)</label>
+          <input id="setWorkoutWeekly" type="number" min="0" step="1" />
+        </div>
+        <div class="field">
+          <label>Walk weekly target (days ≥ 30 min)</label>
+          <input id="setWalkWeekly" type="number" min="0" step="1" />
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button class="btn" id="saveSettings">Save</button>
+        <button class="btn ghost" id="cancelSettings">Cancel</button>
+      </div>
+      <div class="muted" style="margin-top:6px;">Streak logic: Workouts day is <b>done if workout type ≠ None</b>. Walk day is <b>done if ≥ 30 min</b>. Calories day is <b>done if calories &gt; 0 and ≤ current mode target</b>.</div>
+    </div>
+  </dialog>
+
+  <script>
+  ;(() => {
+    const settingsKey = 'hwt_settings_v1';
+    const logsKey = 'hwt_logs_v1';
+
+    const $ = sel => document.querySelector(sel);
+
+    const els = {
+      datePick: $('#datePick'),
+      prevDay: $('#prevDay'),
+      nextDay: $('#nextDay'),
+      today: $('#btnToday'),
+
+      // Mode buttons
+      modeCutting: $('#modeCutting'),
+      modeGaintaining: $('#modeGaintaining'),
+      modeBulking: $('#modeBulking'),
+
+      // Workout type buttons
+      wNone: $('#wNone'),
+      wPush: $('#wPush'),
+      wPull: $('#wPull'),
+      wFull: $('#wFull'),
+
+      // Walk type buttons
+      walkNone: $('#walkNone'),
+      walkLt30: $('#walkLt30'),
+      walkGte30: $('#walkGte30'),
+
+      // Calorie segmented buttons
+      calUntracked: $('#calUntracked'),
+      calUnder: $('#calUnder'),
+      calOver: $('#calOver'),
+
+      statusWorkout: $('#statusWorkout'),
+      statusWalk: $('#statusWalk'),
+      statusCal: $('#statusCal'),
+
+      streakW: $('#streakWorkouts'),
+      streakWHint: $('#streakWorkoutsHint'),
+      streakWalk: $('#streakWalks'),
+      streakWalkHint: $('#streakWalksHint'),
+      streakCal: $('#streakCalories'),
+      streakCalHint: $('#streakCaloriesHint'),
+
+      chartCalories: $('#chartCalories'),
+      summaryWorkouts: $('#summaryWorkouts'),
+      summaryWalks: $('#summaryWalks'),
+
+      btnExport: $('#btnExport'),
+      btnCopy: $('#btnCopy'),
+      fileImport: $('#fileImport'),
+      ioBox: $('#ioBox'),
+
+      btnSettings: $('#btnSettings'),
+      btnReset: $('#btnReset'),
+      modal: $('#settingsModal'),
+      closeSettings: $('#closeSettings'),
+      saveSettings: $('#saveSettings'),
+      cancelSettings: $('#cancelSettings'),
+
+      // Settings fields
+      setCalCut: $('#setCalCut'),
+      setCalGain: $('#setCalGain'),
+      setCalBulk: $('#setCalBulk'),
+      setWalkTarget: $('#setWalkTarget'),
+      setWalkThresh: $('#setWalkThresh'),
+      setWeekStart: $('#setWeekStart'),
+      setWorkoutWeekly: $('#setWorkoutWeekly'),
+      setWalkWeekly: $('#setWalkWeekly'),
+
+      testBadge: $('#testBadge'),
+    };
+
+    // Defaults
+    const defaultSettings = {
+      currentMode: 'gaintaining', // 'cutting' | 'gaintaining' | 'bulking'
+      calorieLimits: { cutting: 1600, gaintaining: 2400, bulking: 3000 },
+      walkTargetMin: 30,
+      walkDailyThreshold: 20,
+      workoutWeeklyTarget: 4,
+      walkWeeklyTarget: 5,
+      startOfWeek: 'Mon', // 'Mon' or 'Sun'
+    };
+
+    // Color + label maps
+    const COLORS = { push: '#6ae3ff', pull: '#ffc857', full: '#45d483', none: '#2a3163' };
+    const LABELS = { push: 'Push', pull: 'Pull', full: 'Full body', none: 'None' };
+    function labelFromType(t){ return LABELS[t] || 'None'; }
+
+    const WALK_COLORS = { gte30: '#45d483', lt30: '#ffc857', none: '#2a3163' };
+    const WALK_LABELS = { gte30: '≥ 30 min', lt30: '< 30 min', none: 'None' };
+    function labelFromWalkType(t){ return WALK_LABELS[t] || 'None'; }
+
+    const MODE_LABELS = { cutting: 'Cutting', gaintaining: 'Gaintaining', bulking: 'Bulking' };
+
+    // --- Storage helpers ---
+    const loadJSON = (k, fallback) => {
+      try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+    };
+    const saveJSON = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+    let settings = Object.assign({}, defaultSettings, loadJSON(settingsKey, {}));
+    let logs = loadJSON(logsKey, {});
+
+    // --- Migration: logs & settings ---
+    function migrateLogs(){
+      let changed = false;
+      for (const [k, v] of Object.entries(logs)){
+        if (!v.workoutType){ v.workoutType = (v.workouts||0) >= 1 ? 'full' : 'none'; changed = true; }
+        if (!v.walkType){
+          const m = Number(v.walkMin||0);
+          v.walkType = m >= 30 ? 'gte30' : (m > 0 ? 'lt30' : 'none');
+          changed = true;
+        }
+      }
+      if (changed) saveJSON(logsKey, logs);
+    }
+    function migrateSettings(){
+      let changed = false;
+      if (!settings.calorieLimits){
+        const base = Number(settings.calorieLimit||2500);
+        settings.calorieLimits = {
+          cutting: Math.max(800, base - 300),
+          gaintaining: Math.max(800, base),
+          bulking: Math.max(800, base + 300),
+        };
+        delete settings.calorieLimit;
+        changed = true;
+      }
+      if (!settings.currentMode){ settings.currentMode = 'gaintaining'; changed = true; }
+      if (changed) saveJSON(settingsKey, settings);
+    }
+
+    // --- User-requested calorie targets (applied once) ---
+    const USER_TARGETS = { cutting: 1600, gaintaining: 2400, bulking: 3000 };
+    function applyUserTargets(){
+      const t = USER_TARGETS;
+      if (!settings.calorieLimits
+          || settings.calorieLimits.cutting !== t.cutting
+          || settings.calorieLimits.gaintaining !== t.gaintaining
+          || settings.calorieLimits.bulking !== t.bulking){
+        settings.calorieLimits = Object.assign({}, settings.calorieLimits || {}, t);
+        saveJSON(settingsKey, settings);
+      }
+    }
+
+    // Calories status helper
+    function calorieStatus(cal, limit){
+      if (!(cal > 0)) return { label: 'Untracked', cls: 'warn' };
+      if (cal <= limit) return { label: 'Under or equal', cls: 'good' };
+      return { label: 'Over or equal', cls: 'bad' };
+    }
+    function calorieClass(cal, limit){
+      if (!(cal > 0)) return 'untracked';
+      return cal <= limit ? 'under' : 'over';
+    }
+
+    // --- Date helpers ---
+    const toISO = d => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    };
+    const fromISO = s => {
+      const [y,m,d] = s.split('-').map(Number);
+      const dt = new Date(y, m-1, d);
+      dt.setHours(0,0,0,0);
+      return dt;
+    };
+
+    let selectedDate = new Date(); selectedDate.setHours(0,0,0,0);
+
+    function setDateInput(d){ els.datePick.value = toISO(d); }
+
+    function shiftSelected(days){
+      selectedDate = new Date(selectedDate.getTime() + days*864e5);
+      selectedDate.setHours(0,0,0,0);
+      setDateInput(selectedDate);
+      renderAll();
+    }
+
+    // --- CRUD for logs ---
+    function getLog(date){
+      const key = toISO(date);
+      if (!logs[key]) logs[key] = { workouts: 0, workoutType: 'none', walkType: 'none', walkMin: 0, calories: 0 };
+      if (!('workoutType' in logs[key])) logs[key].workoutType = 'none';
+      if (!('walkType' in logs[key])) logs[key].walkType = 'none';
+      return logs[key];
+    }
+    function updateLog(date, patch){
+      const key = toISO(date);
+      logs[key] = Object.assign({ workouts: 0, workoutType: 'none', walkType: 'none', walkMin: 0, calories: 0 }, logs[key] || {}, patch);
+      saveJSON(logsKey, logs);
+    }
+
+    // --- Mode helpers ---
+    function activeMode(){ return settings.currentMode || 'gaintaining'; }
+    function activeCalLimit(){ return Number(settings.calorieLimits?.[activeMode()]) || defaultSettings.calorieLimits.gaintaining; }
+
+    function renderModeButtons(){
+      const mode = activeMode();
+      [els.modeCutting, els.modeGaintaining, els.modeBulking].forEach(b=>b && b.classList.remove('active'));
+      ({ cutting: els.modeCutting, gaintaining: els.modeGaintaining, bulking: els.modeBulking }[mode])?.classList.add('active');
+    }
+
+    // --- Week helpers ---
+    function getWeekDates(baseDate){
+      const d = new Date(baseDate);
+      const day = d.getDay(); // 0=Sun..6=Sat
+      const weekStartIdx = settings.startOfWeek === 'Mon' ? (day===0? -6 : 1 - day) : -day;
+      const start = new Date(d.getTime() + weekStartIdx*864e5);
+      start.setHours(0,0,0,0);
+      return Array.from({length:7}, (_,i)=> new Date(start.getTime() + i*864e5));
+    }
+
+    // --- UI renderers ---
+    function renderInputs(){
+      renderModeButtons();
+      const log = getLog(selectedDate);
+
+      // Workout segmented control
+      const wType = log.workoutType || 'none';
+      [els.wNone, els.wPush, els.wPull, els.wFull].forEach(btn => btn && btn.classList.remove('active'));
+      ({none:els.wNone, push:els.wPush, pull:els.wPull, full:els.wFull}[wType])?.classList.add('active');
+      const workoutDone = wType !== 'none';
+      els.statusWorkout.innerHTML = statusRowWithColor(workoutDone ? `Selected: ${labelFromType(wType)}` : 'No session', workoutDone, wType==='none'? null : COLORS[wType]);
+
+      // Walk segmented control
+      const walkType = log.walkType || 'none';
+      [els.walkNone, els.walkLt30, els.walkGte30].forEach(btn => btn && btn.classList.remove('active'));
+      ({none:els.walkNone, lt30:els.walkLt30, gte30:els.walkGte30}[walkType])?.classList.add('active');
+      const walkDone = walkType === 'gte30';
+      els.statusWalk.innerHTML = statusRowWithColor(`Selected: ${labelFromWalkType(walkType)}`, walkDone, WALK_COLORS[walkType]);
+
+      // Calories (segmented)
+      const limit = activeCalLimit();
+      const cal = Number(log.calories || 0);
+      const cClass = calorieClass(cal, limit);
+      [els.calUntracked, els.calUnder, els.calOver].forEach(btn => btn && btn.classList.remove('active'));
+      ({untracked: els.calUntracked, under: els.calUnder, over: els.calOver}[cClass])?.classList.add('active');
+      const s = calorieStatus(cal, limit);
+      els.statusCal.innerHTML = `<span class="dot ${s.cls}"></span><span>${s.label} (≤ ${limit} kcal — ${MODE_LABELS[activeMode()]})</span>`;
+    }
+
+    function statusRowWithColor(text, ok, color){
+      const extraDot = color ? `<span class="dot" style="background:${color};"></span>` : '';
+      return `${extraDot}<span class="dot ${ok? 'good':'bad'}"></span><span>${text}</span>`;
+    }
+
+    function renderStreaks(){
+      let w=0, wl=0, c=0;
+      const limit = activeCalLimit();
+      let d = new Date(selectedDate);
+      for(;;){
+        const L = logs[toISO(d)] || {workoutType:'none', walkType:'none', walkMin:0, calories:0};
+        if ((L.workoutType||'none') !== 'none') w++; else break;
+        d = new Date(d.getTime() - 864e5);
+      }
+      d = new Date(selectedDate);
+      for(;;){
+        const L = logs[toISO(d)] || {workoutType:'none', walkType:'none', walkMin:0, calories:0};
+        if ((L.walkType||'none') === 'gte30') wl++; else break;
+        d = new Date(d.getTime() - 864e5);
+      }
+      d = new Date(selectedDate);
+      for(;;){
+        const L = logs[toISO(d)] || {workoutType:'none', walkType:'none', walkMin:0, calories:0};
+        const tracked = (L.calories||0) > 0;
+        const within = tracked && (L.calories||0) <= limit;
+        if (within) c++; else break;
+        d = new Date(d.getTime() - 864e5);
+      }
+      els.streakW.textContent = w; els.streakWHint.textContent = `Any session counts (Push/Pull/Full)`;
+      els.streakWalk.textContent = wl; els.streakWalkHint.textContent = `Counts days with ≥ 30 min`;
+      els.streakCal.textContent = c; els.streakCalHint.textContent = `Mode limit ≤ ${activeCalLimit()} kcal (${MODE_LABELS[activeMode()]})`;
+    }
+
+    function summaryRow(cur, tgt, unit){
+      const ok = cur >= tgt; const some = cur > 0 && !ok;
+      const cls = ok ? 'good' : (some ? 'warn' : 'bad');
+      const need = Math.max(0, tgt - cur);
+      const needTxt = ok ? 'Goal met' : (need + ' more');
+      return `<span class="dot ${cls}"></span><span class="txt">Target: <b>${tgt}</b> ${unit} • Done: <b>${cur}</b> • Need: <b>${needTxt}</b></span>`;
+    }
+
+    function renderCharts(){
+      const week = getWeekDates(selectedDate);
+      const labels = week.map(d => d.toLocaleDateString(undefined, {weekday:'short'}));
+      const limit = activeCalLimit();
+
+      // Calories bar stays
+      const cals = week.map(d => (logs[toISO(d)]?.calories)||0);
+      drawBarWithLine(els.chartCalories, labels, cals, {
+        yMax: Math.max(limit*1.2, Math.max(...cals, 1000)),
+        refLine: limit,
+        refLabel: `Mode limit ${limit} (${MODE_LABELS[activeMode()]})`,
+        formatY: v => Math.round(v),
+      });
+
+      // Workouts summary (count of days with a session)
+      const wCount = week.reduce((acc, d) => acc + (((logs[toISO(d)]?.workoutType)||'none') !== 'none' ? 1 : 0), 0);
+      els.summaryWorkouts.innerHTML = summaryRow(wCount, Number(settings.workoutWeeklyTarget||0), 'sessions');
+
+      // Walks summary (count of days with ≥ 30)
+      const walkCount = week.reduce((acc, d) => acc + (((logs[toISO(d)]?.walkType)||'none') === 'gte30' ? 1 : 0), 0);
+      els.summaryWalks.innerHTML = summaryRow(walkCount, Number(settings.walkWeeklyTarget||0), 'days ≥30m');
+    }
+
+    // Minimal bar chart with horizontal ref line (calories)
+    function drawBarWithLine(canvas, labels, values, {yMax, refLine, refLabel, formatY}){
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+
+      const pad = {l: 40, r: 12, t: 20, b: 30};
+      const cw = W - pad.l - pad.r;
+      const ch = H - pad.t - pad.b;
+
+      const maxY = yMax || Math.max(...values, 10);
+      const xStep = cw / values.length;
+
+      ctx.strokeStyle = '#262d5a'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      const gridLines = 4;
+      for (let i=0;i<=gridLines;i++){
+        const y = pad.t + ch - (i/gridLines)*ch;
+        ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = '#aab2d5'; ctx.font = '12px system-ui'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      for (let i=0;i<=gridLines;i++){
+        const val = (i/gridLines)*maxY;
+        const y = pad.t + ch - (i/gridLines)*ch;
+        ctx.fillText((formatY?formatY(val):val.toFixed(0)), pad.l-6, y);
+      }
+
+      const barW = xStep * 0.6;
+      ctx.fillStyle = '#6ae3ff';
+      values.forEach((v, i) => {
+        const h = (v/maxY)*ch;
+        const x = pad.l + i*xStep + (xStep-barW)/2;
+        const y = pad.t + ch - h;
+        ctx.fillRect(x, y, barW, h);
+      });
+
+      if (refLine != null){
+        const y = pad.t + ch - (refLine/maxY)*ch;
+        ctx.strokeStyle = '#45d483'; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#45d483'; ctx.font = '12px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.fillText(refLabel, pad.l+6, y-4);
+      }
+
+      ctx.fillStyle = '#aab2d5'; ctx.font = '12px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      labels.forEach((lbl, i) => {
+        const x = pad.l + i*xStep + xStep/2;
+        ctx.fillText(lbl, x, pad.t + ch + 6);
+      });
+    }
+
+    // --- Settings modal ---
+    function openSettings(){
+      els.setCalCut.value = settings.calorieLimits.cutting;
+      els.setCalGain.value = settings.calorieLimits.gaintaining;
+      els.setCalBulk.value = settings.calorieLimits.bulking;
+      els.setWalkTarget.value = settings.walkTargetMin;
+      els.setWalkThresh.value = settings.walkDailyThreshold;
+      els.setWeekStart.value = settings.startOfWeek;
+      els.setWorkoutWeekly.value = settings.workoutWeeklyTarget;
+      els.setWalkWeekly.value = settings.walkWeeklyTarget;
+      els.modal.showModal();
+    }
+
+    function saveSettings(){
+      const clamp = (v,min,max,def)=>{ v=Number(v); if(Number.isNaN(v)) return def; return Math.min(max, Math.max(min, v)); };
+      settings.calorieLimits.cutting = clamp(els.setCalCut.value, 800, 10000, settings.calorieLimits.cutting);
+      settings.calorieLimits.gaintaining = clamp(els.setCalGain.value, 800, 10000, settings.calorieLimits.gaintaining);
+      settings.calorieLimits.bulking = clamp(els.setCalBulk.value, 800, 10000, settings.calorieLimits.bulking);
+      settings.walkTargetMin = clamp(els.setWalkTarget.value, 0, 600, 30);
+      settings.walkDailyThreshold = clamp(els.setWalkThresh.value, 0, 600, 20);
+      settings.startOfWeek = els.setWeekStart.value === 'Sun' ? 'Sun' : 'Mon';
+      settings.workoutWeeklyTarget = clamp(els.setWorkoutWeekly.value, 0, 21, 4);
+      settings.walkWeeklyTarget = clamp(els.setWalkWeekly.value, 0, 7, 5);
+      saveJSON(settingsKey, settings);
+      els.modal.close();
+      renderAll();
+    }
+
+    function clampNum(v, min, max, def){ v = Number(v); if (Number.isNaN(v)) return def; return Math.min(max, Math.max(min, v)); }
+
+    // --- Event handlers ---
+    els.prevDay.addEventListener('click', () => shiftSelected(-1));
+    els.nextDay.addEventListener('click', () => shiftSelected(1));
+    els.today.addEventListener('click', () => { selectedDate = new Date(); selectedDate.setHours(0,0,0,0); setDateInput(selectedDate); renderAll(); });
+    els.datePick.addEventListener('change', () => { selectedDate = fromISO(els.datePick.value); renderAll(); });
+
+    // Mode button clicks
+    const wireModeBtn = (btn, mode) => btn && btn.addEventListener('click', () => {
+      settings.currentMode = mode; saveJSON(settingsKey, settings);
+      renderInputs(); renderStreaks(); renderCharts(); renderModeButtons();
+    });
+    wireModeBtn(els.modeCutting, 'cutting');
+    wireModeBtn(els.modeGaintaining, 'gaintaining');
+    wireModeBtn(els.modeBulking, 'bulking');
+
+    // Workout type button clicks
+    const wireWorkoutBtn = (btn, type) => btn && btn.addEventListener('click', () => {
+      updateLog(selectedDate, { workoutType: type, workouts: type==='none'?0:1 });
+      renderInputs(); renderStreaks(); renderCharts();
+    });
+    wireWorkoutBtn(els.wNone, 'none');
+    wireWorkoutBtn(els.wPush, 'push');
+    wireWorkoutBtn(els.wPull, 'pull');
+    wireWorkoutBtn(els.wFull, 'full');
+
+    // Walk type button clicks
+    const wireWalkBtn = (btn, type) => btn && btn.addEventListener('click', () => {
+      const num = type==='gte30'? 30 : (type==='lt30'? 15 : 0);
+      updateLog(selectedDate, { walkType: type, walkMin: num });
+      renderInputs(); renderStreaks(); renderCharts();
+    });
+    wireWalkBtn(els.walkNone, 'none');
+    wireWalkBtn(els.walkLt30, 'lt30');
+    wireWalkBtn(els.walkGte30, 'gte30');
+
+    // Calories segmented buttons
+    const wireCalBtn = (btn, kind) => btn && btn.addEventListener('click', () => {
+      const limit = activeCalLimit();
+      const val = kind==='untracked' ? 0 : (kind==='under' ? limit : limit + 1);
+      updateLog(selectedDate, { calories: val });
+      renderInputs(); renderStreaks(); renderCharts();
+    });
+    wireCalBtn(els.calUntracked, 'untracked');
+    wireCalBtn(els.calUnder, 'under');
+    wireCalBtn(els.calOver, 'over');
+
+    // Export / Import
+    els.btnExport.addEventListener('click', () => {
+      const payload = { settings, logs };
+      els.ioBox.value = JSON.stringify(payload, null, 2);
+    });
+    els.btnCopy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(els.ioBox.value); toast('Copied'); } catch { toast('Copy failed'); }
+    });
+    els.fileImport.addEventListener('change', async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data.settings) settings = Object.assign({}, settings, data.settings);
+        if (data.logs) { logs = Object.assign({}, logs, data.logs); saveJSON(logsKey, logs); }
+        saveJSON(settingsKey, settings);
+        toast('Imported'); renderAll();
+      } catch(err){ console.error(err); toast('Import failed'); }
+      finally { e.target.value = ''; }
+    });
+
+    // Settings modal buttons
+    els.btnSettings.addEventListener('click', openSettings);
+    els.closeSettings.addEventListener('click', () => els.modal.close());
+    els.cancelSettings.addEventListener('click', () => els.modal.close());
+    els.saveSettings.addEventListener('click', saveSettings);
+
+    // Reset
+    els.btnReset.addEventListener('click', () => {
+      if (!confirm('This wipes all data (logs + settings). Continue?')) return;
+      settings = Object.assign({}, defaultSettings);
+      logs = {};
+      saveJSON(settingsKey, settings);
+      saveJSON(logsKey, logs);
+      renderAll();
+      toast('Reset complete');
+    });
+
+    // Tiny toast
+    function toast(msg){
+      const t = document.createElement('div');
+      t.textContent = msg;
+      t.style.position='fixed'; t.style.bottom='16px'; t.style.left='50%'; t.style.transform='translateX(-50%)';
+      t.style.background='#0f1330'; t.style.border='1px solid #2a3163'; t.style.color='var(--text)'; t.style.padding='8px 12px'; t.style.borderRadius='10px'; t.style.boxShadow='var(--shadow)';
+      document.body.appendChild(t);
+      setTimeout(()=>{ t.remove(); }, 1400);
+    }
+
+    function renderAll(){ setDateInput(selectedDate); renderInputs(); renderStreaks(); renderCharts(); }
+
+    // --- Self-tests (basic) ---
+    function runSelfTests(){
+      const results = [];
+      const ok = (name, cond) => results.push({name, pass: !!cond});
+      try {
+        // Label helpers
+        ok('labelFromType(push)', labelFromType('push') === 'Push');
+        ok('labelFromWalkType(gte30)', labelFromWalkType('gte30') === '≥ 30 min');
+
+        // Settings migration
+        const old = { calorieLimit: 2600 };
+        const clone = JSON.parse(JSON.stringify(old));
+        const prev = settings; settings = Object.assign({}, defaultSettings, clone); migrateSettings();
+        ok('migrateSettings created calorieLimits', !!settings.calorieLimits);
+        ok('migrateSettings base→gaintaining', settings.calorieLimits.gaintaining === 2600);
+        ok('migrateSettings cutting offset', settings.calorieLimits.cutting === 2300);
+        ok('migrateSettings bulking offset', settings.calorieLimits.bulking === 2900);
+        settings = prev;
+
+        // Mode helpers
+        const prevMode = settings.currentMode; const prevLimits = JSON.parse(JSON.stringify(settings.calorieLimits));
+        settings.currentMode = 'cutting'; settings.calorieLimits.cutting = 2000; ok('activeCalLimit cutting', activeCalLimit() === 2000);
+        settings.currentMode = 'bulking'; settings.calorieLimits.bulking = 3000; ok('activeCalLimit bulking', activeCalLimit() === 3000);
+        settings.currentMode = prevMode; settings.calorieLimits = prevLimits;
+
+        // Week counters
+        const hold = logs; logs = {};
+        const base = new Date('2025-01-08'); // Wed
+        const week = getWeekDates(base);
+        // 3 workouts Mon/Wed/Fri, 4 walks on Mon..Thu (gte30)
+        week.forEach((d,i)=>{
+          const k = toISO(d); logs[k] = { workoutType: (i%2===0? 'full':'none'), walkType: (i<4? 'gte30':'none'), calories: 0 };
+        });
+        const wCount = week.reduce((a,d)=> a + (((logs[toISO(d)]?.workoutType)||'none')!=='none'?1:0), 0);
+        const wlCount = week.reduce((a,d)=> a + (((logs[toISO(d)]?.walkType)||'none')==='gte30'?1:0), 0);
+        ok('week workouts count', wCount === 4); // i=0,2,4,6
+        ok('week walks count', wlCount === 4);
+        logs = hold;
+
+        // Calorie status tests
+        const cs1 = calorieStatus(0, 2000); ok('calorieStatus untracked', cs1.label === 'Untracked' && cs1.cls==='warn');
+        const cs2 = calorieStatus(1999, 2000); ok('calorieStatus under', cs2.label === 'Under or equal' && cs2.cls==='good');
+        const cs3 = calorieStatus(2000, 2000); ok('calorieStatus equal as under', cs3.label === 'Under or equal' && cs3.cls==='good');
+        const cs4 = calorieStatus(2001, 2000); ok('calorieStatus over', cs4.label === 'Over or equal' && cs4.cls==='bad');
+      } catch(e){ console.error('Self-test error', e); ok('tests threw', false); }
+
+      const failed = results.filter(r=>!r.pass);
+      if (els.testBadge){
+        els.testBadge.style.display = 'inline-block';
+        if (failed.length){
+          els.testBadge.textContent = `tests: FAIL (${failed.length})`;
+          els.testBadge.style.background = '#3a0f16';
+          els.testBadge.style.color = '#ffd4d4';
+          els.testBadge.style.borderColor = '#7a1f2c';
+        } else { els.testBadge.textContent = 'tests: ok'; }
+      }
+      console.groupCollapsed('Self-tests');
+      results.forEach(r => console.log(`${r.pass ? '✅' : '❌'} ${r.name}`));
+      console.groupEnd();
+    }
+
+    // init
+    migrateLogs();
+    migrateSettings();
+    applyUserTargets();
+    setDateInput(selectedDate);
+    renderAll();
+    runSelfTests();
+
+  })();
+  </script>
+
+  <!-- PWA bootstrap: dynamic manifest + icons + service worker registration -->
+  <script>
+    (function(){
+      try {
+        function genIcon(size){
+          const c = document.createElement('canvas'); c.width=c.height=size;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#0f1222'; ctx.fillRect(0,0,size,size);
+          ctx.fillStyle = '#6ae3ff';
+          ctx.font = Math.floor(size*0.38)+'px system-ui,Segoe UI,Roboto,Arial';
+          ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText('HWT', size/2, size/2);
+          return c.toDataURL('image/png');
+        }
+        const icon192 = genIcon(192), icon512 = genIcon(512);
+
+        const manifest = {
+          name: 'Habit & Workout Tracker',
+          short_name: 'HWT',
+          start_url: './',
+          display: 'standalone',
+          background_color: '#0f1222',
+          theme_color: '#0f1222',
+          icons: [
+            { src: icon192, sizes: '192x192', type: 'image/png' },
+            { src: icon512, sizes: '512x512', type: 'image/png' }
+          ]
+        };
+
+        let link = document.querySelector('link[rel="manifest"]#app-manifest');
+        if (!link) { link = document.createElement('link'); link.rel='manifest'; link.id='app-manifest'; document.head.appendChild(link); }
+        link.setAttribute('href', URL.createObjectURL(new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'})));
+
+        // iOS home screen icon
+        let apple = document.querySelector('link[rel="apple-touch-icon"]#apple-icon');
+        if (!apple){ apple = document.createElement('link'); apple.rel='apple-touch-icon'; apple.id='apple-icon'; document.head.appendChild(apple); }
+        apple.setAttribute('href', icon192);
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('./sw.js').catch(console.error);
+        }
+      } catch(e) {
+        console.warn('PWA setup failed', e);
+      }
+    })();
+  </script>
+</body>
+</html>
